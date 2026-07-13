@@ -1,9 +1,8 @@
+import os
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 
 from app.database import Base, engine
 from app.routers import auth, bookings, drivers, reviews, telegram, users
@@ -46,13 +45,15 @@ def health():
     return {"status": "ok", "service": "NightDriver API"}
 
 
-# Serve built React frontend — must come LAST so API routes take priority
+# Serve built React frontend locally — Vercel handles static files on its own
 STATIC_DIR = Path(__file__).parent.parent / "frontend" / "dist"
 
-if STATIC_DIR.exists():
+if STATIC_DIR.exists() and not os.getenv("VERCEL"):
+    from fastapi.staticfiles import StaticFiles
+    from fastapi.responses import FileResponse
+
     app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets")
 
-    # Catch-all: return index.html for all non-API routes (React Router handles them)
     @app.get("/{full_path:path}", include_in_schema=False)
     def serve_spa(full_path: str):
         return FileResponse(STATIC_DIR / "index.html")
