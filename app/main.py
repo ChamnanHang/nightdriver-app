@@ -52,8 +52,8 @@ def health():
 # Serve built React frontend locally — Vercel handles static files on its own
 STATIC_DIR = Path(__file__).parent.parent / "frontend" / "dist"
 
-if STATIC_DIR.exists() and not os.getenv("VERCEL"):
-    from fastapi.staticfiles import StaticFiles
+if STATIC_DIR.exists():
+    from fastapi.staticfiles import StaticFiles  # requires aiofiles
     from fastapi.responses import FileResponse
 
     app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets")
