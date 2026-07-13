@@ -12,7 +12,11 @@ import app.models.driver    # noqa: F401
 import app.models.booking   # noqa: F401
 import app.models.review    # noqa: F401
 
-Base.metadata.create_all(bind=engine)
+try:
+    Base.metadata.create_all(bind=engine)
+except Exception as exc:
+    import logging
+    logging.getLogger(__name__).warning("DB init skipped: %s", exc)
 
 app = FastAPI(
     title="NightDriver — Designated Driver Booking API",

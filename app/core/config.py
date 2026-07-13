@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
 
-    DATABASE_URL: str = "sqlite:///./nightdriver.db"
+    DATABASE_URL: str = "sqlite:////tmp/nightdriver.db"
 
     TELEGRAM_BOT_TOKEN: str = ""
 
