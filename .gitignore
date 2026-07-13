@@ -39,3 +39,4 @@ Thumbs.db
 .idea/
 *.swp
 .claude/
+frontend/.env.local

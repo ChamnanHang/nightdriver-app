@@ -1,0 +1,23 @@
+{
+  "version": 2,
+  "buildCommand": "cd frontend && npm install && npm run build",
+  "outputDirectory": "frontend/dist",
+  "functions": {
+    "api/index.py": {
+      "maxDuration": 30,
+      "memory": 512
+    }
+  },
+  "rewrites": [
+    { "source": "/auth/:path*",     "destination": "/api/index" },
+    { "source": "/users/:path*",    "destination": "/api/index" },
+    { "source": "/bookings/:path*", "destination": "/api/index" },
+    { "source": "/drivers/:path*",  "destination": "/api/index" },
+    { "source": "/reviews/:path*",  "destination": "/api/index" },
+    { "source": "/telegram/:path*", "destination": "/api/index" },
+    { "source": "/health",          "destination": "/api/index" },
+    { "source": "/docs",            "destination": "/api/index" },
+    { "source": "/openapi.json",    "destination": "/api/index" },
+    { "source": "/(.*)",            "destination": "/index.html" }
+  ]
+}
