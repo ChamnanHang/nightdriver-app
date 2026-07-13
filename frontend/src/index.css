@@ -1,0 +1,75 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Telegram Mini App — use Telegram's own CSS variables when available */
+.tg-hint { color: var(--tg-theme-hint-color, rgba(255,255,255,0.4)); }
+.tg-bg { background: var(--tg-theme-bg-color, #07090f); }
+
+@layer base {
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  /* In Telegram, honour the viewport height Telegram provides */
+  body {
+    @apply bg-night-900 text-white font-sans antialiased;
+    background-image: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(139,92,246,0.15), transparent);
+    min-height: 100vh;
+  }
+  #root { min-height: 100vh; text-align: left; width: 100%; max-width: 100%; border: none; }
+  input, textarea, select {
+    @apply bg-night-800 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30
+           focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all w-full;
+    font-family: inherit;
+  }
+  h1, h2 { font-weight: 700; color: white; }
+}
+
+@layer components {
+  .glass {
+    @apply bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl;
+  }
+  .glass-dark {
+    @apply bg-night-800/80 backdrop-blur-sm border border-white/10 rounded-2xl;
+  }
+  .btn-primary {
+    @apply bg-violet-600 hover:bg-violet-500 text-white font-semibold px-6 py-3 rounded-xl
+           transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed
+           focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 focus:ring-offset-night-900
+           w-full text-center cursor-pointer border-0;
+    font-family: inherit;
+    font-size: 1rem;
+  }
+  .btn-secondary {
+    @apply bg-white/10 hover:bg-white/15 text-white font-semibold px-6 py-3 rounded-xl
+           border border-white/10 transition-all duration-200 active:scale-95 w-full text-center cursor-pointer;
+    font-family: inherit;
+    font-size: 1rem;
+  }
+  .btn-danger {
+    @apply bg-red-500/20 hover:bg-red-500/30 text-red-400 font-semibold px-6 py-3 rounded-xl
+           border border-red-500/30 transition-all duration-200 active:scale-95 w-full text-center cursor-pointer;
+    font-family: inherit;
+    font-size: 1rem;
+  }
+  .btn-success {
+    @apply bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 font-semibold px-6 py-3 rounded-xl
+           border border-emerald-500/30 transition-all duration-200 active:scale-95 w-full text-center cursor-pointer;
+    font-family: inherit;
+    font-size: 1rem;
+  }
+  .label {
+    @apply block text-sm font-medium text-white/60 mb-1.5;
+  }
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+/* Leaflet popup overrides */
+.popup-eta { color: #f59e0b; font-weight: 600; }
+.leaflet-popup-content-wrapper { background: #0d1117; border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 12px; }
+.leaflet-popup-tip { background: #0d1117; }
+.leaflet-popup-content strong { color: #a78bfa; }
