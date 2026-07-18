@@ -10,6 +10,9 @@ class Settings(BaseSettings):
 
     TELEGRAM_BOT_TOKEN: str = ""
 
+    ADMIN_EMAIL: str = "admin@nightdriver.com"
+    ADMIN_PASSWORD: str = "admin1234"
+
     BASE_FARE: float = 2.50
     PRICE_PER_KM: float = 1.80
     NIGHT_SURGE_MULTIPLIER: float = 1.5
