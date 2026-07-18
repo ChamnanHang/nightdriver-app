@@ -1,10 +1,14 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from math import asin, cos, radians, sin, sqrt
 
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.models.booking import ServiceType
 from app.models.pricing import PricingSetting
+
+# Cambodia runs on Indochina Time (no DST)
+CAMBODIA_TZ = timezone(timedelta(hours=7))
 
 
 def get_pricing(db: Session) -> PricingSetting:
@@ -36,9 +40,9 @@ def haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
 
 
 def is_night_time(pricing: PricingSetting, dt: datetime | None = None) -> bool:
-    """Return True if the given datetime falls in the night surge window."""
-    now = dt or datetime.now(timezone.utc)
-    hour = now.hour
+    """Return True if the current Cambodia-local hour is in the night window."""
+    now = dt or datetime.now(CAMBODIA_TZ)
+    hour = now.astimezone(CAMBODIA_TZ).hour if now.tzinfo else now.hour
     start = pricing.night_start_hour  # e.g. 20 (8 PM)
     end = pricing.night_end_hour      # e.g. 6  (6 AM)
     if start > end:  # crosses midnight
@@ -46,12 +50,36 @@ def is_night_time(pricing: PricingSetting, dt: datetime | None = None) -> bool:
     return start <= hour < end
 
 
-def calculate_fare(pricing: PricingSetting, distance_km: float, night_surge: bool) -> float:
-    fare = pricing.base_fare + distance_km * pricing.price_per_km
+def calculate_fare(
+    pricing: PricingSetting,
+    distance_km: float,
+    night_surge: bool,
+    service_type: ServiceType = ServiceType.DESIGNATED,
+) -> float:
+    if service_type == ServiceType.DESIGNATED:
+        fare = pricing.designated_base_fare + distance_km * pricing.designated_price_per_km
+    else:
+        fare = pricing.base_fare + distance_km * pricing.price_per_km
     if night_surge:
         fare *= pricing.night_surge_multiplier
+    if service_type == ServiceType.DESIGNATED:
+        fare += pricing.pickup_fee  # driver's moto ride out to the venue
     fare = max(fare, pricing.minimum_fare)
     return round(fare, 2)
+
+
+def find_service_zone(db: Session, lat: float, lng: float):
+    """Return (zone_or_none, restricted). restricted is False when no active
+    zones are configured, meaning bookings are accepted anywhere."""
+    from app.models.zone import ServiceZone
+
+    zones = db.query(ServiceZone).filter(ServiceZone.is_active.is_(True)).all()
+    if not zones:
+        return None, False
+    for zone in zones:
+        if haversine_km(lat, lng, zone.center_lat, zone.center_lng) <= zone.radius_km:
+            return zone, True
+    return None, True
 
 
 def split_fare(pricing: PricingSetting, fare: float) -> tuple[float, float]:

@@ -45,6 +45,10 @@ export const updateLocation = (lat: number, lng: number) =>
   api.put("/drivers/me/location", { lat, lng });
 
 // Bookings
+export const getFareQuote = (p: {
+  pickup_lat: number; pickup_lng: number;
+  destination_lat: number; destination_lng: number;
+}) => api.get("/bookings/quote", { params: p });
 export const createBooking = (d: object) => api.post("/bookings", d);
 export const getMyBookings = () => api.get("/bookings/my");
 export const getBooking = (id: number) => api.get(`/bookings/${id}`);

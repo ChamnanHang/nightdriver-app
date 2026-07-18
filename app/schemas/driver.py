@@ -10,6 +10,7 @@ class DriverRegister(BaseModel):
     license_number: str
     vehicle_model: str
     vehicle_plate: str
+    can_drive_manual: bool = True
 
 
 class DriverLogin(BaseModel):
@@ -26,8 +27,10 @@ class DriverOut(BaseModel):
     vehicle_model: str
     vehicle_plate: str
     is_available: bool
+    can_drive_manual: bool
     average_rating: float
     total_trips: int
+    total_earnings: float
     current_lat: float | None
     current_lng: float | None
     created_at: datetime

@@ -11,7 +11,12 @@ export default function BookingCard({ booking }: { booking: Booking }) {
   return (
     <Link to={`/booking/${booking.id}`} className="glass-dark p-5 flex flex-col gap-3 hover:border-white/20 transition-all animate-slide-up group">
       <div className="flex items-center justify-between">
-        <StatusBadge status={booking.status} />
+        <div className="flex items-center gap-2">
+          <StatusBadge status={booking.status} />
+          <span className="text-xs text-white/40">
+            {booking.service_type === "designated" ? "🔑 My car" : "🚕 Ride"}
+          </span>
+        </div>
         <div className="flex items-center gap-1 text-white/30 text-xs">
           <span>{date}</span>
           <ChevronRight size={14} className="group-hover:translate-x-0.5 transition-transform" />

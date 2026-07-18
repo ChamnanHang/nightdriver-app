@@ -1,12 +1,17 @@
 from datetime import datetime
 from pydantic import BaseModel
 
-from app.models.booking import BookingStatus
+from app.models.booking import BookingStatus, ServiceType
 from app.schemas.driver import DriverPublic
 from app.schemas.user import UserOut
 
 
 class BookingCreate(BaseModel):
+    service_type: ServiceType = ServiceType.DESIGNATED
+    # Customer's car — required when service_type is DESIGNATED
+    car_model: str | None = None
+    car_plate: str | None = None
+    car_transmission: str | None = None  # "auto" | "manual"
     pickup_address: str
     pickup_lat: float
     pickup_lng: float
@@ -20,6 +25,10 @@ class BookingOut(BaseModel):
     id: int
     customer_id: int
     driver_id: int | None
+    service_type: ServiceType
+    car_model: str | None
+    car_plate: str | None
+    car_transmission: str | None
     pickup_address: str
     pickup_lat: float
     pickup_lng: float

@@ -9,6 +9,7 @@ import { useAuth } from "../../contexts/AuthContext";
 interface FormData {
   full_name: string; email: string; phone: string; password: string;
   license_number: string; vehicle_model: string; vehicle_plate: string;
+  can_drive_manual: boolean;
 }
 
 export default function DriverRegister() {
@@ -88,6 +89,13 @@ export default function DriverRegister() {
               <label className="label">License Plate</label>
               <input placeholder="ABC-1234" {...register("vehicle_plate", { required: "Required" })} />
             </div>
+            <label className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-3 cursor-pointer">
+              <input type="checkbox" defaultChecked className="w-4 h-4 accent-amber-500" {...register("can_drive_manual")} />
+              <div>
+                <p className="text-sm text-white">I can drive manual transmission</p>
+                <p className="text-xs text-white/40">Many customer cars in Cambodia are stick shift — this gets you more jobs</p>
+              </div>
+            </label>
 
             <button type="submit" className="btn-primary flex items-center justify-center gap-2 mt-2" disabled={loading}
               style={{ background: loading ? undefined : "linear-gradient(135deg, #d97706, #f59e0b)" }}>

@@ -12,6 +12,7 @@ from app.database import get_db
 from app.models.booking import Booking, BookingStatus
 from app.models.driver import Driver
 from app.models.user import User
+from app.models.zone import ServiceZone
 from app.utils.pricing import get_pricing
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
@@ -75,6 +76,10 @@ def get_stats(db: Session = Depends(get_db), _=Depends(require_admin)):
 class PricingUpdate(BaseModel):
     base_fare: Optional[float] = None
     price_per_km: Optional[float] = None
+    designated_base_fare: Optional[float] = None
+    designated_price_per_km: Optional[float] = None
+    pickup_fee: Optional[float] = None
+    khr_per_usd: Optional[float] = None
     night_surge_multiplier: Optional[float] = None
     night_start_hour: Optional[int] = None
     night_end_hour: Optional[int] = None
@@ -86,6 +91,10 @@ def _pricing_out(p) -> dict:
     return {
         "base_fare": p.base_fare,
         "price_per_km": p.price_per_km,
+        "designated_base_fare": p.designated_base_fare,
+        "designated_price_per_km": p.designated_price_per_km,
+        "pickup_fee": p.pickup_fee,
+        "khr_per_usd": p.khr_per_usd,
         "night_surge_multiplier": p.night_surge_multiplier,
         "night_start_hour": p.night_start_hour,
         "night_end_hour": p.night_end_hour,
@@ -110,7 +119,11 @@ def update_pricing_settings(
         value = getattr(body, field)
         if value is not None and not 0 <= value <= 23:
             raise HTTPException(400, f"{field} must be between 0 and 23")
-    for field in ("base_fare", "price_per_km", "night_surge_multiplier", "minimum_fare"):
+    for field in (
+        "base_fare", "price_per_km", "designated_base_fare",
+        "designated_price_per_km", "pickup_fee", "khr_per_usd",
+        "night_surge_multiplier", "minimum_fare",
+    ):
         value = getattr(body, field)
         if value is not None and value < 0:
             raise HTTPException(400, f"{field} cannot be negative")
@@ -121,6 +134,76 @@ def update_pricing_settings(
     db.commit()
     db.refresh(pricing)
     return _pricing_out(pricing)
+
+
+# ── Service zones (operating area) ────────────────────────────────────────────
+
+class ZoneCreate(BaseModel):
+    name: str
+    center_lat: float
+    center_lng: float
+    radius_km: float = 20.0
+
+
+class ZoneUpdate(BaseModel):
+    name: Optional[str] = None
+    center_lat: Optional[float] = None
+    center_lng: Optional[float] = None
+    radius_km: Optional[float] = None
+    is_active: Optional[bool] = None
+
+
+def _zone_out(z: ServiceZone) -> dict:
+    return {
+        "id": z.id, "name": z.name,
+        "center_lat": z.center_lat, "center_lng": z.center_lng,
+        "radius_km": z.radius_km, "is_active": z.is_active,
+        "created_at": z.created_at,
+    }
+
+
+@router.get("/zones")
+def list_zones(db: Session = Depends(get_db), _=Depends(require_admin)):
+    zones = db.scalars(select(ServiceZone).order_by(ServiceZone.id)).all()
+    return {"items": [_zone_out(z) for z in zones]}
+
+
+@router.post("/zones", status_code=201)
+def create_zone(body: ZoneCreate, db: Session = Depends(get_db), _=Depends(require_admin)):
+    if body.radius_km <= 0 or body.radius_km > 300:
+        raise HTTPException(400, "radius_km must be between 0 and 300")
+    zone = ServiceZone(
+        name=body.name, center_lat=body.center_lat,
+        center_lng=body.center_lng, radius_km=body.radius_km,
+    )
+    db.add(zone)
+    db.commit()
+    db.refresh(zone)
+    return _zone_out(zone)
+
+
+@router.put("/zones/{zone_id}")
+def update_zone(zone_id: int, body: ZoneUpdate, db: Session = Depends(get_db), _=Depends(require_admin)):
+    zone = db.get(ServiceZone, zone_id)
+    if not zone:
+        raise HTTPException(404, "Zone not found")
+    if body.radius_km is not None and (body.radius_km <= 0 or body.radius_km > 300):
+        raise HTTPException(400, "radius_km must be between 0 and 300")
+    for field, value in body.model_dump(exclude_unset=True).items():
+        setattr(zone, field, value)
+    db.commit()
+    db.refresh(zone)
+    return _zone_out(zone)
+
+
+@router.delete("/zones/{zone_id}")
+def delete_zone(zone_id: int, db: Session = Depends(get_db), _=Depends(require_admin)):
+    zone = db.get(ServiceZone, zone_id)
+    if not zone:
+        raise HTTPException(404, "Zone not found")
+    db.delete(zone)
+    db.commit()
+    return {"deleted": zone_id}
 
 
 # ── Earnings ──────────────────────────────────────────────────────────────────
@@ -222,6 +305,7 @@ def list_drivers(
                 "phone": d.phone, "license_number": d.license_number,
                 "vehicle_model": d.vehicle_model, "vehicle_plate": d.vehicle_plate,
                 "is_active": d.is_active, "is_available": d.is_available,
+                "can_drive_manual": d.can_drive_manual,
                 "average_rating": d.average_rating, "total_trips": d.total_trips,
                 "total_earnings": round(d.total_earnings or 0.0, 2),
                 "created_at": d.created_at,
@@ -270,6 +354,10 @@ def list_bookings(
         "items": [
             {
                 "id": b.id, "status": b.status,
+                "service_type": b.service_type,
+                "car_model": b.car_model,
+                "car_plate": b.car_plate,
+                "car_transmission": b.car_transmission,
                 "customer": {"id": b.customer.id, "full_name": b.customer.full_name, "email": b.customer.email} if b.customer else None,
                 "driver": {"id": b.driver.id, "full_name": b.driver.full_name} if b.driver else None,
                 "pickup_address": b.pickup_address,

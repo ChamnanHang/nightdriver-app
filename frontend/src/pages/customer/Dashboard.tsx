@@ -1,14 +1,15 @@
 import { Clock, MapPin, Navigation, Plus, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { cancelBooking, createBooking, getMyBookings } from "../../api/client";
+import { cancelBooking, createBooking, getFareQuote, getMyBookings } from "../../api/client";
 import AddressSearch from "../../components/AddressSearch";
 import BookingCard from "../../components/BookingCard";
 import type { LatLng } from "../../components/MapPicker";
 import MapPicker from "../../components/MapPicker";
+import { FareEstimate, ServicePicker, loadSavedCar, saveCar, type CarInfo } from "../../components/ServicePicker";
 import Spinner from "../../components/Spinner";
 import { useAuth } from "../../contexts/AuthContext";
-import type { Booking } from "../../types";
+import type { Booking, FareQuote, ServiceType } from "../../types";
 import { reverseGeocode } from "../../utils/geocode";
 
 interface BookingForm { notes: string; }
@@ -21,6 +22,11 @@ export default function CustomerDashboard() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
 
+  // Service type + customer's car (for daiko)
+  const [service, setService] = useState<ServiceType>("designated");
+  const [car, setCar] = useState<CarInfo>(loadSavedCar);
+  const [quote, setQuote] = useState<FareQuote | null>(null);
+
   // Map state
   const [pickup, setPickup] = useState<LatLng | null>(null);
   const [destination, setDestination] = useState<LatLng | null>(null);
@@ -28,6 +34,15 @@ export default function CustomerDashboard() {
   const [destinationAddress, setDestinationAddress] = useState("");
   const [selecting, setSelecting] = useState<"pickup" | "destination">("pickup");
   const [resolving, setResolving] = useState(false);
+
+  useEffect(() => {
+    if (pickup && destination) {
+      getFareQuote({
+        pickup_lat: pickup.lat, pickup_lng: pickup.lng,
+        destination_lat: destination.lat, destination_lng: destination.lng,
+      }).then((r) => setQuote(r.data)).catch(() => setQuote(null));
+    }
+  }, [pickup, destination]);
 
   const { register, handleSubmit, reset } = useForm<BookingForm>();
 
@@ -67,6 +82,7 @@ export default function CustomerDashboard() {
     setDestinationAddress("");
     setSelecting("pickup");
     setFormError("");
+    setQuote(null);
     setShowForm(false);
   };
 
@@ -75,10 +91,18 @@ export default function CustomerDashboard() {
       setFormError("Please set both pickup and destination on the map.");
       return;
     }
+    if (service === "designated" && (!car.model.trim() || !car.plate.trim())) {
+      setFormError("Please enter your car model and plate number.");
+      return;
+    }
     setSubmitting(true);
     setFormError("");
     try {
       await createBooking({
+        service_type: service,
+        car_model: service === "designated" ? car.model.trim() : undefined,
+        car_plate: service === "designated" ? car.plate.trim() : undefined,
+        car_transmission: service === "designated" ? car.transmission : undefined,
         pickup_address: pickupAddress,
         pickup_lat: pickup.lat,
         pickup_lng: pickup.lng,
@@ -87,6 +111,7 @@ export default function CustomerDashboard() {
         destination_lng: destination.lng,
         notes: data.notes || undefined,
       });
+      if (service === "designated") saveCar(car);
       resetForm();
       load();
     } catch (e: any) {
@@ -149,7 +174,7 @@ export default function CustomerDashboard() {
             </div>
             <div className="text-center">
               <p className="font-semibold text-white">Book a Driver</p>
-              <p className="text-sm text-white/40 mt-0.5">Pick locations on the map</p>
+              <p className="text-sm text-white/40 mt-0.5">We drive you home — in your car or ours</p>
             </div>
           </button>
         )}
@@ -175,6 +200,11 @@ export default function CustomerDashboard() {
                 🌙 Night surge (1.5×) is active
               </div>
             )}
+
+            {/* Service type + car details */}
+            <div className="mb-4">
+              <ServicePicker service={service} onService={setService} car={car} onCar={setCar} />
+            </div>
 
             {/* Address search boxes */}
             <div className="flex flex-col gap-3 mb-4">
@@ -250,6 +280,12 @@ export default function CustomerDashboard() {
                 onDestination={handleDestination}
               />
             </div>
+
+            {quote && (
+              <div className="mb-4">
+                <FareEstimate quote={quote} service={service} />
+              </div>
+            )}
 
             <form onSubmit={handleSubmit(onBook)} className="flex flex-col gap-4">
               <div>

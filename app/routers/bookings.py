@@ -5,12 +5,13 @@ from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_driver, get_current_user
 from app.database import get_db
-from app.models.booking import Booking, BookingStatus
+from app.models.booking import Booking, BookingStatus, ServiceType
 from app.models.driver import Driver
 from app.models.user import User
 from app.schemas.booking import BookingCancel, BookingCreate, BookingDetail, BookingOut
 from app.utils.pricing import (
     calculate_fare,
+    find_service_zone,
     get_pricing,
     haversine_km,
     is_night_time,
@@ -18,6 +19,39 @@ from app.utils.pricing import (
 )
 
 router = APIRouter(prefix="/bookings", tags=["Bookings"])
+
+
+# ── Public fare estimate ────────────────────────────────────────────────────
+
+@router.get("/quote")
+def fare_quote(
+    pickup_lat: float, pickup_lng: float,
+    destination_lat: float, destination_lng: float,
+    db: Session = Depends(get_db),
+):
+    """Fare estimate for both service types — no auth, used before booking."""
+    pricing = get_pricing(db)
+    distance = haversine_km(pickup_lat, pickup_lng, destination_lat, destination_lng)
+    night = is_night_time(pricing)
+    designated = calculate_fare(pricing, distance, night, ServiceType.DESIGNATED)
+    ride = calculate_fare(pricing, distance, night, ServiceType.RIDE)
+    zone, restricted = find_service_zone(db, pickup_lat, pickup_lng)
+    return {
+        "in_service_area": zone is not None or not restricted,
+        "zone_name": zone.name if zone else None,
+        "distance_km": round(distance, 2),
+        "is_night_surge": night,
+        "night_surge_multiplier": pricing.night_surge_multiplier,
+        "khr_per_usd": pricing.khr_per_usd,
+        "designated": {
+            "fare_usd": designated,
+            "fare_khr": round(designated * pricing.khr_per_usd, -2),
+        },
+        "ride": {
+            "fare_usd": ride,
+            "fare_khr": round(ride * pricing.khr_per_usd, -2),
+        },
+    }
 
 
 # ── Customer endpoints ──────────────────────────────────────────────────────
@@ -47,16 +81,42 @@ def create_booking(
             status_code=400, detail="You already have an active booking"
         )
 
+    # Daiko bookings need the customer's car details so the driver can find
+    # and legally drive it
+    if payload.service_type == ServiceType.DESIGNATED:
+        if not payload.car_model or not payload.car_plate:
+            raise HTTPException(
+                status_code=400,
+                detail="Please provide your car model and plate number",
+            )
+        if payload.car_transmission not in ("auto", "manual"):
+            raise HTTPException(
+                status_code=400,
+                detail="car_transmission must be 'auto' or 'manual'",
+            )
+
+    # Pickup must be inside an active service zone (if any are configured)
+    zone, restricted = find_service_zone(db, payload.pickup_lat, payload.pickup_lng)
+    if restricted and zone is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Sorry, this pickup location is outside our service area",
+        )
+
     distance = haversine_km(
         payload.pickup_lat, payload.pickup_lng,
         payload.destination_lat, payload.destination_lng,
     )
     pricing = get_pricing(db)
     night = is_night_time(pricing)
-    fare = calculate_fare(pricing, distance, night)
+    fare = calculate_fare(pricing, distance, night, payload.service_type)
 
     booking = Booking(
         customer_id=current_user.id,
+        service_type=payload.service_type,
+        car_model=payload.car_model,
+        car_plate=payload.car_plate,
+        car_transmission=payload.car_transmission,
         pickup_address=payload.pickup_address,
         pickup_lat=payload.pickup_lat,
         pickup_lng=payload.pickup_lng,
@@ -131,12 +191,14 @@ def pending_bookings(
     """All pending bookings visible to available drivers."""
     if not current_driver.is_available:
         raise HTTPException(status_code=403, detail="You must be available to see the queue")
-    return (
-        db.query(Booking)
-        .filter(Booking.status == BookingStatus.PENDING)
-        .order_by(Booking.created_at.asc())
-        .all()
-    )
+    q = db.query(Booking).filter(Booking.status == BookingStatus.PENDING)
+    # Hide manual-car daiko jobs from drivers who can't drive stick shift
+    if not current_driver.can_drive_manual:
+        q = q.filter(
+            (Booking.service_type != ServiceType.DESIGNATED)
+            | (Booking.car_transmission != "manual")
+        )
+    return q.order_by(Booking.created_at.asc()).all()
 
 
 @router.post("/{booking_id}/accept", response_model=BookingOut)
@@ -148,6 +210,14 @@ def accept_booking(
     booking = db.get(Booking, booking_id)
     if not booking or booking.status != BookingStatus.PENDING:
         raise HTTPException(status_code=404, detail="Booking not available")
+    if (
+        booking.service_type == ServiceType.DESIGNATED
+        and booking.car_transmission == "manual"
+        and not current_driver.can_drive_manual
+    ):
+        raise HTTPException(
+            status_code=400, detail="This job requires a manual-transmission driver"
+        )
 
     # Make sure driver has no other active trip
     active = (

@@ -64,6 +64,7 @@ def register_driver(payload: DriverRegister, db: Session = Depends(get_db)):
         license_number=payload.license_number,
         vehicle_model=payload.vehicle_model,
         vehicle_plate=payload.vehicle_plate,
+        can_drive_manual=payload.can_drive_manual,
     )
     db.add(driver)
     db.commit()

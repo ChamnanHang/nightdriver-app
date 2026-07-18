@@ -12,6 +12,27 @@ import StatusBadge from "../../components/StatusBadge";
 import { useAuth } from "../../contexts/AuthContext";
 import type { Booking } from "../../types";
 
+function ServiceBadge({ b }: { b: Booking }) {
+  if (b.service_type === "designated") {
+    return (
+      <div className="bg-violet-500/10 border border-violet-500/20 rounded-lg px-3 py-2 text-xs">
+        <span className="text-violet-300 font-semibold">🔑 Drive customer's car</span>
+        <span className="text-white/60 ml-2">
+          {b.car_model} · {b.car_plate} ·{" "}
+          <span className={b.car_transmission === "manual" ? "text-amber-400 font-semibold" : ""}>
+            {b.car_transmission === "manual" ? "MANUAL" : "Auto"}
+          </span>
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2 text-xs">
+      <span className="text-emerald-300 font-semibold">🚕 Pickup in your car</span>
+    </div>
+  );
+}
+
 export default function DriverDashboard() {
   const { driver } = useAuth();
   const [available, setAvailable] = useState(driver?.is_available ?? false);
@@ -162,11 +183,13 @@ export default function DriverDashboard() {
               <StatusBadge status={activeTrip.status} />
             </div>
 
+            <div className="mb-3"><ServiceBadge b={activeTrip} /></div>
+
             <div className="flex flex-col gap-3 mb-4">
               <div className="flex items-start gap-2">
                 <MapPin size={14} className="text-violet-400 mt-0.5 shrink-0" />
                 <div>
-                  <p className="text-xs text-white/40">Pickup</p>
+                  <p className="text-xs text-white/40">{activeTrip.service_type === "designated" ? "Customer's car is at" : "Pickup"}</p>
                   <p className="text-sm text-white">{activeTrip.pickup_address}</p>
                 </div>
               </div>
@@ -238,6 +261,8 @@ export default function DriverDashboard() {
                       <span className="text-xs text-white/40">#{b.id} · {new Date(b.created_at).toLocaleTimeString()}</span>
                       {b.is_night_surge && <span className="text-xs text-amber-400">🌙 Night surge</span>}
                     </div>
+
+                    <div className="mb-3"><ServiceBadge b={b} /></div>
 
                     <div className="flex flex-col gap-2 mb-4">
                       <div className="flex items-start gap-2">

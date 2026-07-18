@@ -18,6 +18,9 @@ class Driver(Base):
     vehicle_plate: Mapped[str] = mapped_column(String(20), unique=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_available: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Manual-transmission cars are common in Cambodia; drivers who can't drive
+    # stick shift never see designated jobs for manual cars
+    can_drive_manual: Mapped[bool] = mapped_column(Boolean, default=True)
 
     # Current location (updated by driver app)
     current_lat: Mapped[float | None] = mapped_column(Float, nullable=True)

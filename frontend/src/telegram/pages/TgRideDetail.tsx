@@ -102,11 +102,25 @@ export default function TgRideDetail() {
       {/* Map */}
       <BookingMap booking={booking} />
 
+      {/* Service */}
+      <div className={`rounded-xl px-4 py-3 text-sm border ${booking.service_type === "designated" ? "bg-violet-500/10 border-violet-500/20" : "bg-emerald-500/10 border-emerald-500/20"}`}>
+        {booking.service_type === "designated" ? (
+          <>
+            <span className="font-semibold text-violet-300">🔑 Drive My Car</span>
+            <span className="text-white/60 ml-2">
+              {booking.car_model} · {booking.car_plate} · {booking.car_transmission === "manual" ? "Manual" : "Auto"}
+            </span>
+          </>
+        ) : (
+          <span className="font-semibold text-emerald-300">🚕 Ride in driver's car</span>
+        )}
+      </div>
+
       {/* Route */}
       <div className="glass-dark p-4 flex flex-col gap-3">
         <div className="flex items-start gap-2">
           <MapPin size={14} className="text-violet-400 mt-0.5 shrink-0" />
-          <div><p className="text-xs text-white/40">Pickup</p><p className="text-sm text-white">{booking.pickup_address}</p></div>
+          <div><p className="text-xs text-white/40">{booking.service_type === "designated" ? "Your car is at" : "Pickup"}</p><p className="text-sm text-white">{booking.pickup_address}</p></div>
         </div>
         <div className="flex items-start gap-2">
           <Navigation size={14} className="text-emerald-400 mt-0.5 shrink-0" />

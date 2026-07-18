@@ -1,13 +1,16 @@
 import { MapPin, Navigation } from "lucide-react";
 import { useEffect, useState } from "react";
-import { createBooking } from "../../api/client";
+import { createBooking, getFareQuote } from "../../api/client";
 import AddressSearch from "../../components/AddressSearch";
 import type { LatLng } from "../../components/MapPicker";
 import MapPicker from "../../components/MapPicker";
+import { FareEstimate, ServicePicker, loadSavedCar, saveCar, type CarInfo } from "../../components/ServicePicker";
+import type { FareQuote, ServiceType } from "../../types";
 import { reverseGeocode } from "../../utils/geocode";
 import { useTelegram } from "../useTelegram";
 
-type Step = "pickup" | "destination" | "confirm";
+type Step = "service" | "pickup" | "destination" | "confirm";
+const STEPS: Step[] = ["service", "pickup", "destination", "confirm"];
 
 interface Props {
   onDone: () => void;
@@ -17,20 +20,35 @@ interface Props {
 export default function TgBookRide({ onDone, onBack }: Props) {
   const { showMainButton, hideMainButton, setMainButtonLoading, showBackButton, hideBackButton, haptic, alert } = useTelegram();
 
-  const [step, setStep] = useState<Step>("pickup");
+  const [step, setStep] = useState<Step>("service");
+  const [service, setService] = useState<ServiceType>("designated");
+  const [car, setCar] = useState<CarInfo>(loadSavedCar);
   const [pickup, setPickup] = useState<LatLng | null>(null);
   const [destination, setDestination] = useState<LatLng | null>(null);
   const [pickupAddr, setPickupAddr] = useState("");
   const [destAddr, setDestAddr] = useState("");
   const [notes, setNotes] = useState("");
   const [resolving, setResolving] = useState(false);
+  const [quote, setQuote] = useState<FareQuote | null>(null);
+
+  const carReady = service === "ride" || (car.model.trim() && car.plate.trim());
 
   const goBack = () => {
     haptic.light();
-    if (step === "pickup") { onBack(); return; }
-    if (step === "destination") setStep("pickup");
-    if (step === "confirm") setStep("destination");
+    const i = STEPS.indexOf(step);
+    if (i === 0) { onBack(); return; }
+    setStep(STEPS[i - 1]);
   };
+
+  // Fetch fare quote when both points are set
+  useEffect(() => {
+    if (pickup && destination) {
+      getFareQuote({
+        pickup_lat: pickup.lat, pickup_lng: pickup.lng,
+        destination_lat: destination.lat, destination_lng: destination.lng,
+      }).then((r) => setQuote(r.data)).catch(() => setQuote(null));
+    }
+  }, [pickup, destination]);
 
   const submit = async () => {
     if (!pickup || !destination) return;
@@ -38,6 +56,10 @@ export default function TgBookRide({ onDone, onBack }: Props) {
     setMainButtonLoading(true);
     try {
       await createBooking({
+        service_type: service,
+        car_model: service === "designated" ? car.model.trim() : undefined,
+        car_plate: service === "designated" ? car.plate.trim() : undefined,
+        car_transmission: service === "designated" ? car.transmission : undefined,
         pickup_address: pickupAddr,
         pickup_lat: pickup.lat,
         pickup_lng: pickup.lng,
@@ -46,6 +68,7 @@ export default function TgBookRide({ onDone, onBack }: Props) {
         destination_lng: destination.lng,
         notes: notes || undefined,
       });
+      if (service === "designated") saveCar(car);
       haptic.success();
       onDone();
     } catch (e: any) {
@@ -60,7 +83,13 @@ export default function TgBookRide({ onDone, onBack }: Props) {
   useEffect(() => {
     showBackButton(goBack);
 
-    if (step === "pickup") {
+    if (step === "service") {
+      if (carReady) {
+        showMainButton("Next: Where is your car? →", () => { haptic.light(); setStep("pickup"); });
+      } else {
+        hideMainButton();
+      }
+    } else if (step === "pickup") {
       if (pickup) {
         showMainButton("Next: Set Destination →", () => { haptic.light(); setStep("destination"); });
       } else {
@@ -77,7 +106,7 @@ export default function TgBookRide({ onDone, onBack }: Props) {
     }
 
     return () => { hideMainButton(); hideBackButton(); };
-  }, [step, pickup, destination]);
+  }, [step, pickup, destination, service, car]);
 
   const handlePickup = async (ll: LatLng) => {
     setPickup(ll);
@@ -95,28 +124,36 @@ export default function TgBookRide({ onDone, onBack }: Props) {
     setResolving(false);
   };
 
-  const hour = new Date().getHours();
-  const isNight = hour >= 20 || hour < 6;
+  const stepIdx = STEPS.indexOf(step);
+  const stepLabel =
+    step === "service" ? "Choose Service"
+    : step === "pickup" ? (service === "designated" ? "Where's your car?" : "Set Pickup")
+    : step === "destination" ? "Set Destination"
+    : "Confirm";
 
   return (
     <div className="flex flex-col gap-4 pb-24 px-4 pt-4">
       {/* Step indicator */}
       <div className="flex items-center gap-2">
-        {(["pickup", "destination", "confirm"] as Step[]).map((s, i) => (
+        {STEPS.map((s, i) => (
           <div key={s} className="flex items-center gap-2">
-            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all ${step === s ? "bg-violet-600 text-white" : (["pickup","destination","confirm"].indexOf(step) > i ? "bg-emerald-600 text-white" : "bg-white/10 text-white/30")}`}>
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all ${step === s ? "bg-violet-600 text-white" : (stepIdx > i ? "bg-emerald-600 text-white" : "bg-white/10 text-white/30")}`}>
               {i + 1}
             </div>
-            {i < 2 && <div className={`flex-1 h-0.5 ${["pickup","destination","confirm"].indexOf(step) > i ? "bg-emerald-600" : "bg-white/10"}`} style={{ width: 24 }} />}
+            {i < STEPS.length - 1 && <div className={`flex-1 h-0.5 ${stepIdx > i ? "bg-emerald-600" : "bg-white/10"}`} style={{ width: 16 }} />}
           </div>
         ))}
-        <p className="text-xs text-white/40 ml-1 capitalize">{step === "pickup" ? "Set Pickup" : step === "destination" ? "Set Destination" : "Confirm"}</p>
+        <p className="text-xs text-white/40 ml-1">{stepLabel}</p>
       </div>
 
-      {isNight && (
-        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2 text-xs text-amber-400">
-          🌙 Night surge pricing (1.5×) active
-        </div>
+      {/* Step: Service type + car details */}
+      {step === "service" && (
+        <>
+          <ServicePicker service={service} onService={setService} car={car} onCar={setCar} />
+          {service === "designated" && !carReady && (
+            <p className="text-xs text-white/30 text-center">Enter your car model and plate to continue</p>
+          )}
+        </>
       )}
 
       {/* Step: Pickup */}
@@ -124,10 +161,11 @@ export default function TgBookRide({ onDone, onBack }: Props) {
         <>
           <div>
             <label className="label flex items-center gap-1.5">
-              <MapPin size={12} className="text-violet-400" /> Pickup Location
+              <MapPin size={12} className="text-violet-400" />
+              {service === "designated" ? "Where is your car parked?" : "Pickup Location"}
             </label>
             <AddressSearch
-              placeholder="Search pickup address…"
+              placeholder={service === "designated" ? "Search the bar / restaurant / KTV…" : "Search pickup address…"}
               onSelect={(r) => handlePickup({ lat: parseFloat(r.lat), lng: parseFloat(r.lon) })}
             />
             {pickup && <p className="text-xs text-violet-400 mt-1 truncate">📍 {pickupAddr}</p>}
@@ -147,7 +185,7 @@ export default function TgBookRide({ onDone, onBack }: Props) {
           </div>
           <div>
             <label className="label flex items-center gap-1.5">
-              <Navigation size={12} className="text-emerald-400" /> Destination
+              <Navigation size={12} className="text-emerald-400" /> Home / Hotel Destination
             </label>
             <AddressSearch
               placeholder="Search destination address…"
@@ -164,11 +202,25 @@ export default function TgBookRide({ onDone, onBack }: Props) {
       {/* Step: Confirm */}
       {step === "confirm" && pickup && destination && (
         <>
+          {quote && <FareEstimate quote={quote} service={service} />}
           <MapPicker pickup={pickup} destination={destination} selecting="destination" onPickup={() => {}} onDestination={() => {}} />
           <div className="glass-dark p-4 flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">{service === "designated" ? "🔑" : "🚕"}</span>
+              <div>
+                <p className="text-sm text-white font-medium">
+                  {service === "designated" ? "Drive My Car" : "Need a Ride"}
+                </p>
+                {service === "designated" && (
+                  <p className="text-xs text-white/40">
+                    {car.model} · {car.plate} · {car.transmission === "auto" ? "Automatic" : "Manual"}
+                  </p>
+                )}
+              </div>
+            </div>
             <div className="flex items-start gap-2">
               <MapPin size={14} className="text-violet-400 mt-0.5 shrink-0" />
-              <div><p className="text-xs text-white/40">Pickup</p><p className="text-sm text-white">{pickupAddr}</p></div>
+              <div><p className="text-xs text-white/40">{service === "designated" ? "Your car is at" : "Pickup"}</p><p className="text-sm text-white">{pickupAddr}</p></div>
             </div>
             <div className="flex items-start gap-2">
               <Navigation size={14} className="text-emerald-400 mt-0.5 shrink-0" />
@@ -180,7 +232,7 @@ export default function TgBookRide({ onDone, onBack }: Props) {
             <input
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="e.g. I'll be in front of the main entrance…"
+              placeholder="e.g. Black Camry in the parking lot, I'm inside the bar…"
             />
           </div>
         </>

@@ -25,6 +25,20 @@ export interface Driver {
   created_at: string;
 }
 
+export type ServiceType = "designated" | "ride";
+export type Transmission = "auto" | "manual";
+
+export interface FareQuote {
+  in_service_area: boolean;
+  zone_name: string | null;
+  distance_km: number;
+  is_night_surge: boolean;
+  night_surge_multiplier: number;
+  khr_per_usd: number;
+  designated: { fare_usd: number; fare_khr: number };
+  ride: { fare_usd: number; fare_khr: number };
+}
+
 export type BookingStatus =
   | "pending"
   | "accepted"
@@ -37,6 +51,10 @@ export interface Booking {
   id: number;
   customer_id: number;
   driver_id: number | null;
+  service_type: ServiceType;
+  car_model: string | null;
+  car_plate: string | null;
+  car_transmission: Transmission | null;
   pickup_address: string;
   pickup_lat: number;
   pickup_lng: number;
