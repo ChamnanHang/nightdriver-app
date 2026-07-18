@@ -33,6 +33,9 @@ class BookingOut(BaseModel):
     estimated_fare: float | None
     final_fare: float | None
     is_night_surge: bool
+    commission_rate: float | None = None
+    commission_amount: float | None = None
+    driver_earnings: float | None = None
     status: BookingStatus
     notes: str | None
     cancel_reason: str | None

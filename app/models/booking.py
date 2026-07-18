@@ -46,6 +46,11 @@ class Booking(Base):
     final_fare: Mapped[float | None] = mapped_column(Float, nullable=True)
     is_night_surge: Mapped[bool] = mapped_column(default=False)
 
+    # Money split (set when trip completes)
+    commission_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    commission_amount: Mapped[float | None] = mapped_column(Float, nullable=True)
+    driver_earnings: Mapped[float | None] = mapped_column(Float, nullable=True)
+
     status: Mapped[BookingStatus] = mapped_column(
         Enum(BookingStatus), default=BookingStatus.PENDING
     )

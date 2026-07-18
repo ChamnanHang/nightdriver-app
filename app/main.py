@@ -11,6 +11,7 @@ import app.models.user      # noqa: F401
 import app.models.driver    # noqa: F401
 import app.models.booking   # noqa: F401
 import app.models.review    # noqa: F401
+import app.models.pricing   # noqa: F401
 
 try:
     Base.metadata.create_all(bind=engine)

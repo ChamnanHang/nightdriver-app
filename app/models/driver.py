@@ -28,6 +28,7 @@ class Driver(Base):
 
     average_rating: Mapped[float] = mapped_column(Float, default=0.0)
     total_trips: Mapped[int] = mapped_column(default=0)
+    total_earnings: Mapped[float] = mapped_column(Float, default=0.0)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

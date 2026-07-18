@@ -9,7 +9,13 @@ from app.models.booking import Booking, BookingStatus
 from app.models.driver import Driver
 from app.models.user import User
 from app.schemas.booking import BookingCancel, BookingCreate, BookingDetail, BookingOut
-from app.utils.pricing import calculate_fare, haversine_km, is_night_time
+from app.utils.pricing import (
+    calculate_fare,
+    get_pricing,
+    haversine_km,
+    is_night_time,
+    split_fare,
+)
 
 router = APIRouter(prefix="/bookings", tags=["Bookings"])
 
@@ -45,8 +51,9 @@ def create_booking(
         payload.pickup_lat, payload.pickup_lng,
         payload.destination_lat, payload.destination_lng,
     )
-    night = is_night_time()
-    fare = calculate_fare(distance, night)
+    pricing = get_pricing(db)
+    night = is_night_time(pricing)
+    fare = calculate_fare(pricing, distance, night)
 
     booking = Booking(
         customer_id=current_user.id,
@@ -223,8 +230,16 @@ def complete_trip(
     booking.completed_at = datetime.now(timezone.utc)
     booking.final_fare = booking.estimated_fare
 
+    # Split the fare: platform commission vs. driver earnings
+    pricing = get_pricing(db)
+    commission, earnings = split_fare(pricing, booking.final_fare or 0.0)
+    booking.commission_rate = pricing.commission_rate
+    booking.commission_amount = commission
+    booking.driver_earnings = earnings
+
     driver = db.get(Driver, current_driver.id)
     driver.total_trips += 1
+    driver.total_earnings = round((driver.total_earnings or 0.0) + earnings, 2)
     driver.is_available = True
 
     db.commit()
