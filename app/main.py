@@ -63,4 +63,8 @@ if STATIC_DIR.exists():
 
     @app.get("/{full_path:path}", include_in_schema=False)
     def serve_spa(full_path: str):
-        return FileResponse(STATIC_DIR / "index.html")
+        # no-cache so browsers always pick up new asset hashes after a deploy
+        return FileResponse(
+            STATIC_DIR / "index.html",
+            headers={"Cache-Control": "no-cache"},
+        )
